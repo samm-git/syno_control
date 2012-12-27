@@ -1,0 +1,12 @@
+status_led - utility to set "status" led on DS207 NAS
+
+This tool is designed to control "status" led on Synlogy DS207 NAS.
+After startup tool is checking power status on HDD1 and HDD2 and if 
+both drives are in "standby" status - turning status led off.
+Updated status is also logged using syslog. If at least one of them 
+is active - led is turned on. This is done in a loop, every second.
+
+To enable debug use -v (or -vv) switch. I am recommending to use
+this tool together with hd-idle (http://hd-idle.sourceforge.net/).
+
+(c) Alex Samorukov, samm@os2.kiev.ua
