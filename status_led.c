@@ -258,7 +258,7 @@ int main(int argc, char * argv[])
 		}
 	}
 	if(!verbose)
-		daemon(1, 0); /*  run in the background */
+		daemon(0, 0); /*  run in the background */
         for (;;) {
         	if (file_exists(STATUS_FILE))
         		setStatusLed(2, verbose);
