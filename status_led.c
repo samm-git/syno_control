@@ -218,7 +218,7 @@ void setStatusLed(int status, int verbose){
 		statusn[status]);
 	if(verbose)
 		printf("Set status: %d\n", status);
-	if ((ttys1_fd = open("/dev/ttyS1", O_RDWR)) < 0) {
+	if ((ttys1_fd = open("/dev/ttyS1", O_WRONLY)) < 0) {
 		fprintf(stderr, "Unable to open /dev/ttyS1\n");
 		exit(1);
 	}
