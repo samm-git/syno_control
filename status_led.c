@@ -43,14 +43,17 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <syslog.h>
+#include <unistd.h>
 /* sg3 lib */
 #include <scsi/sg_lib.h>
 #include <scsi/sg_io_linux.h>
 
 #define DEVNAME_SDA                "/dev/sda"
 #define DEVNAME_SDB                "/dev/sdb"
-#define UART2_CMD_LED_HD_OFF       "\x37"
-#define UART2_CMD_LED_HD_GS        "\x38"
+#define STATUS_FILE                "/var/run/status-alert"
+#define UART2_CMD_LED_HD_OFF       "\x37" /* status led off */
+#define UART2_CMD_LED_HD_GS        "\x38" /* status led green */
+#define UART2_CMD_LED_HD_AB        "\x3B" /* status led orange blinking */
 
 #define PM_STATUS_ACTIVE       1
 #define PM_STATUS_IDLE         2
@@ -199,22 +202,37 @@ int getPowerMode(char * file_name, int verbose) {
 	return ret;    
 }
 
+int file_exists(char *filename)
+{
+  struct stat   buffer;   
+  return (stat (filename, &buffer) == 0);
+}
+
 void setStatusLed(int status, int verbose){
 	int ttys1_fd;
+	const char const * statusn[]={"standby","active", "alert"};
 	
 	if(oldstatus == status)
 		return; /* status is already set */
-	syslog(LOG_INFO, "Device state changed to %s", status?"active":"standby");
+	syslog(LOG_INFO, "Device state changed to %s", 
+		statusn[status]);
 	if(verbose)
 		printf("Set status: %d\n", status);
 	if ((ttys1_fd = open("/dev/ttyS1", O_RDWR)) < 0) {
 		fprintf(stderr, "Unable to open /dev/ttyS1\n");
 		exit(1);
 	}
-	if(status)
-		write(ttys1_fd, UART2_CMD_LED_HD_GS, 1);
-	else
+	switch (status) {
+	case 0:
 		write(ttys1_fd, UART2_CMD_LED_HD_OFF, 1);
+		break;
+	case 1:
+		write(ttys1_fd, UART2_CMD_LED_HD_GS, 1);
+		break;
+	case 2:
+		write(ttys1_fd, UART2_CMD_LED_HD_AB, 1);
+		break;
+	}
 	close(ttys1_fd);
 	oldstatus = status;
 }
@@ -242,13 +260,17 @@ int main(int argc, char * argv[])
 	if(!verbose)
 		daemon(1, 0); /*  run in the background */
         for (;;) {
-        	int st_sda = getPowerMode(DEVNAME_SDA, verbose);
-        	int st_sdb = getPowerMode(DEVNAME_SDB, verbose);
-        	if(st_sda == PM_STATUS_STANDBY && st_sdb == PM_STATUS_STANDBY) {
-        		setStatusLed(0, verbose);
-        	}
+        	if (file_exists(STATUS_FILE))
+        		setStatusLed(2, verbose);
         	else {
-        		setStatusLed(1, verbose);
+        		int st_sda = getPowerMode(DEVNAME_SDA, verbose);
+        		int st_sdb = getPowerMode(DEVNAME_SDB, verbose);
+        		if(st_sda == PM_STATUS_STANDBY && st_sdb == PM_STATUS_STANDBY) {
+        			setStatusLed(0, verbose);
+        		}
+        		else {
+        			setStatusLed(1, verbose);
+        		}
         	}
         	sleep(1);
         }

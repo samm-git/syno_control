@@ -6,6 +6,10 @@ both drives are in "standby" status - turning status led off.
 Updated status is also logged using syslog. If at least one of them 
 is active - led is turned on. This is done in a loop, every second.
 
+Also it is possible to set status led to "orange blinking" by creating
+/var/run/status-alert file. This is done for integration with external
+programs. If this file is removed led is returned to normal status.
+
 To enable debug use -v (or -vv) switch. I am recommending to use
 this tool together with hd-idle (http://hd-idle.sourceforge.net/).
 
