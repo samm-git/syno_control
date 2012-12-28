@@ -1,5 +1,6 @@
 /*
 * Utility to set Synlogy DS207 "status" led according to HDD power state
+* Also it is listening for key events to run USB/Power scripts.
 *
 * (c) Alex Samorukov 2012
 *
@@ -33,6 +34,7 @@
 *
 */
 
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -44,6 +46,12 @@
 #include <sys/stat.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/prctl.h>
+#include <signal.h>
 /* sg3 lib */
 #include <scsi/sg_lib.h>
 #include <scsi/sg_io_linux.h>
@@ -54,7 +62,8 @@
 #define UART2_CMD_LED_HD_OFF       "\x37" /* status led off */
 #define UART2_CMD_LED_HD_GS        "\x38" /* status led green */
 #define UART2_CMD_LED_HD_AB        "\x3B" /* status led orange blinking */
-
+#define USB_SCRIPT                 "/etc/syno/buttons/usb"
+#define POWER_SCRIPT               "/etc/syno/buttons/power"
 #define PM_STATUS_ACTIVE       1
 #define PM_STATUS_IDLE         2
 #define PM_STATUS_STANDBY      3
@@ -218,7 +227,7 @@ void setStatusLed(int status, int verbose){
 		statusn[status]);
 	if(verbose)
 		printf("Set status: %d\n", status);
-	if ((ttys1_fd = open("/dev/ttyS1", O_WRONLY)) < 0) {
+	if ((ttys1_fd = open("/dev/ttyS1", O_WRONLY | O_CLOEXEC)) < 0) {
 		fprintf(stderr, "Unable to open /dev/ttyS1\n");
 		exit(1);
 	}
@@ -259,6 +268,11 @@ int main(int argc, char * argv[])
 	}
 	if(!verbose)
 		daemon(0, 0); /*  run in the background */
+	/* start button thread */
+	pthread_t button_thread;
+	void *ButtonControl();
+	pthread_create(&button_thread,NULL, ButtonControl, NULL);
+	
         for (;;) {
         	if (file_exists(STATUS_FILE))
         		setStatusLed(2, verbose);
@@ -275,4 +289,64 @@ int main(int argc, char * argv[])
         	sleep(1);
         }
         return 0;
+}
+
+void *ButtonControl(void){
+	int            fd;
+	struct termios options;
+	/* open the port */
+	fd = open("/dev/ttyS1", O_RDWR | O_NOCTTY | O_NDELAY | O_CLOEXEC);
+	fcntl(fd, F_SETFL, 0);
+	
+	/* get the current options */
+	tcgetattr(fd, &options);
+	
+	/* set raw input, 1 second timeout */
+	options.c_cflag     |= (CLOCAL | CREAD);
+	options.c_lflag     &= ~(ICANON | ECHO | ECHOE | ISIG);
+	options.c_oflag     &= ~OPOST;
+	options.c_cc[VMIN]  = 10;
+	options.c_cc[VTIME] = 100;
+	/* set speed */
+	cfsetispeed(&options, B9600);
+	cfsetospeed(&options, B9600);
+	/* set the options */
+	tcsetattr(fd, TCSANOW, &options);
+	char buf[2]={0};
+	
+	char* argv_usb[] = { USB_SCRIPT, NULL };
+	char* argv_power[] = { POWER_SCRIPT, NULL };
+	signal(SIGCHLD, SIG_IGN);
+	char name [17];	/* Name must be <= 16 characters + a null */
+	
+	strcpy (name, "button_control");
+	prctl (PR_SET_NAME, (unsigned long)&name);
+
+	
+	for (;;){
+		read(fd,&buf,1);
+		int child_pid = fork();
+		if(child_pid == 0) { /* child */
+			close(STDIN_FILENO);
+			close(STDOUT_FILENO);
+			close(STDERR_FILENO);
+			switch(buf[0]){
+			case 0x60:
+				syslog(LOG_INFO, "USB button pressed, running %s",
+					USB_SCRIPT);
+				execve(argv_usb[0], argv_usb, environ);
+				break;
+			case 0x30:
+				syslog(LOG_INFO, "Power button pressed, running %s",
+					POWER_SCRIPT);
+				execve(argv_power[0], argv_power, environ);
+				break;
+			default:
+				syslog(LOG_INFO, "Unknown even on serial port: 0x%x", buf[0]);
+			}
+			exit(0); /* end forked child */
+		}
+		buf[0]=0;
+	}
+	close(fd);
 }

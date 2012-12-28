@@ -1,14 +1,21 @@
-status_led - utility to set "status" led on DS207 NAS
+syno_control - utility to manage "status" led and buttons on DS207 NAS
 
-This tool is designed to control "status" led on Synlogy DS207 NAS.
-After startup tool is checking power status on HDD1 and HDD2 and if 
-both drives are in "standby" status - turning status led off.
-Updated status is also logged using syslog. If at least one of them 
-is active - led is turned on. This is done in a loop, every second.
+This tool is designed to control "status" led and buttons on Synlogy DS207 NAS.
+After startup tool is checking power status on HDD1 and HDD2 and if both
+drives are in "standby" status - turning status led off.
+
+Updated status and events from buttons are also logged using syslog.
+If at least one of them is active - led is turned on. This is done in a loop,
+every second.
 
 Also it is possible to set status led to "orange blinking" by creating
-/var/run/status-alert file. This is done for integration with external
-programs. If this file is removed led is returned to normal status.
+/var/run/status-alert file. This is done for integration with external programs.
+If this file is removed led is returned to normal status.
+
+Also syno_control listening for events from USB and power buttons.If buttons
+are pressed it is trying to start scripts /etc/syno/buttons/usb (for USB button)
+and /etc/syno/buttons/power (for POWER button). This scripts are executed in
+background mode, so syno_control is not blocked during execution.
 
 To enable debug use -v (or -vv) switch. I am recommending to use
 this tool together with hd-idle (http://hd-idle.sourceforge.net/).

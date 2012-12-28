@@ -1,17 +1,17 @@
 CC=gcc
-CFLAGS=-c -Wall
+CFLAGS=-c -Wall -Os
 STRIP=strip
 # g3_utils package, on debian provided by libsgutils2-dev
-LIBS=-lsgutils2
+LIBS=-lsgutils2 -lpthread
 
-all: status_led
+all: syno_control
 
-status_led: status_led.o
-	$(CC) status_led.o $(LIBS) -o status_led
-	$(STRIP) status_led
+syno_control: syno_control.o
+	$(CC) syno_control.o $(LIBS) -o syno_control
+	$(STRIP) syno_control
 
-status_led.o: status_led.c
-	$(CC) $(CFLAGS) status_led.c
+syno_control.o: syno_control.c
+	$(CC) $(CFLAGS) syno_control.c
 
 clean:
-	rm -rf *o status_led
+	rm -rf *o syno_control
